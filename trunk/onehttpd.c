@@ -30,8 +30,10 @@
 "  -v       Verbose, show informative messages                              \n"\
 "  -V       Very verbose, show also debug messages                          \n"\
 "                                                                           \n"\
-"Example: onehttpd.exe C:\\WWW         # Serve files in C:\\WWW on port 8080 \n"\
+"Example: onehttpd.exe C:\\WWW         # Serve files in C:\\WWW on port 8080  \n"\
 "Example: onehttpd -p 8008 /var/www   # Serve files in /var/www on port 8008\n"\
+"                                                                           \n"\
+"HINT: In Windows, you can just drag and drop a directory onto onehttpd.exe \n"\
 "\n"
 
 #/* (Mis-)Features:
@@ -39,7 +41,7 @@
 # * - Designed to run on both WinNT and UNIX platforms (although currently only
 # *   tested on Linux, WinXP)
 # * - Clients tested: Chrome, Firefox, IE5, IE6. (shouldn't matter actually)
-# * - Small and simple design (although a bit too simple at times)
+# * - Small and simple design
 # * - Insecure. I've taken extra care with buffers but I'm no experienced C
 #     coder, and my system programming (esp with Win32) is lacking. OS related
 #     logic holes are be abound.
@@ -48,16 +50,14 @@
 
 #/* Known Issues:
 # *
-# * - I've encountered some problems when trying to stress test onehttpd on
-# *   Win2k with ab (apache benchmarking tool) when concurrent connections get
-# *   to around 5. Haven't figured out the exact reason yet.
+# * - Due to the simple design, and my amatuer systems programming skills, this
+#     httpd is not intended to be robust. It won't likely be able to serve more
+#     than a few concurrent requests without showing problems.
 # * - There is a hard coded MAX_FILE_DESCRIPTORS constant in the code, meaning
 #     that there's a static limit to the number of concurrent connections. This
 #     is not a big design flaw, since most systems have a file descriptor limit
 #     anyway but it does make the code a bit ugly. I'm not going to fix this as
 #     yet since onehttpd is not supposed to be used in high volume sites anyway.
-# * - Absolutely no checking on the file type as requested. You can even open
-#     /dev/stdin...
 # */
 
 #/* About the source:
@@ -83,13 +83,13 @@
 
 #/* For Makefile:
 ONEHTTPD_VERSION_MAJOR=0
-ONEHTTPD_VERSION_MINOR=5
+ONEHTTPD_VERSION_MINOR=6
 #*/
 
 #/* For C */
 #define ONEHTTPD_VERSION_MAJOR 0
-#define ONEHTTPD_VERSION_MINOR 5
-#define ONEHTTPD_VERSION_STRING "0.5"
+#define ONEHTTPD_VERSION_MINOR 6
+#define ONEHTTPD_VERSION_STRING "0.6"
 #define ONEHTTPD_VERSION_STRING_FULL "onehttpd/" ONEHTTPD_VERSION_STRING
 
 # /* This is the Makefile part
@@ -179,7 +179,7 @@ typedef struct __file_t* file_t;
 
 struct __dir_t {
 	HANDLE h;
-	WIN32_FIND_DATA ffd;
+	WIN32_FIND_DATAW ffd;
 	char nomorefiles;
 };
 
@@ -251,17 +251,19 @@ typedef unsigned long word_t;
 
 #define ISHEX(c) ((c>='0'&&c<='9')||(c>='a'&&c<='f')||(c>='A'&&c<='F'))
 
-/* this macro has network byte order problems */
+/* FIXME: this macro probably has network byte order problems (but then I don't have a big endian machine to test it with...) */
 #define IPADDRESS(ip) (unsigned int) (((ip)>>0)&0xff), (unsigned int) (((ip)>>8)&0xff), (unsigned int) (((ip)>>16)&0xff), (unsigned int) (((ip)>>24)&0xff)
 
-/* TODO optimize these numbers */
-#define BUF_CHUNK 10240
-#define LINKED_BLOCK_CHUNK 10240 /* is keeping the size to just below 2^n is better than just above 2^n? */
-// #define MAX_READ_ROUNDS 128
-#define MAX_READ_ROUNDS 4 /* FIXME: use the 128 value after debugging */
+#define BUF_CHUNK (1024*128)
+#define LINKED_BLOCK_CHUNK (1024*128)
+#define MAX_READ_ROUNDS (32)
 
 /* 40 KB is the hard coded maximum size of a request */
-#define MAX_REQUEST_SIZE (1024 * 40)
+#define MAX_REQUEST_SIZE (1024*40)
+
+/* maximum amount of file data we will read into memory per request */
+/* this is not really a "hard" limit, the actual hard limit should be this value plus one BUF_CHUNK */
+#define MAX_OUTPUT_QUEUE_SIZE (4096*1024)
 
 #define HTTP_SERVER_HEADER \
 	"Server: " ONEHTTPD_VERSION_STRING_FULL "\r\n"
@@ -665,7 +667,7 @@ int is_fs_safe_path( const char *path )
 
 	for (c = path; *c != 0; c++, l++)
 	{
-		if (*c < 32) return False;
+		// if (*c < 32) return False; // this line commented out since utf-8 paths seem to have char values < 32... (but is there any unsafe stuff here?)
 		switch (*c)
 		{
 			case '"':
@@ -864,7 +866,11 @@ char *log_date( time_t t )
 	ASSERT(tmp != NULL); /* seems that there is no reason (at least in glibc
 							docs) localtime will return NULL */
 
+#ifdef WIN32 /* just don't show the timezone in windows... the name is toooo long, and it reportedly uses the codepage/locale of the system, without unicode... */
+	strftime(buf256,sizeof(buf256),"%Y-%m-%d.%H:%M:%S", tmp);
+#else
 	strftime(buf256,sizeof(buf256),"%F.%H:%M:%S.%z", tmp);
+#endif
 
 	return buf256;
 }
@@ -887,53 +893,95 @@ enum result_t http_decode_uri_abs_path( const char *in_str, char *out_str,
 		char **query_strings );
 
 /* )******** IO WRAP ******* (*/
+#define IO_NONBLOCK 0x1
 
 static enum result_t io_errno;
 
-#define IO_NONBLOCK 0x1
-/* FIXME: the linux version should use some fstat() instead ! */
-/* or actually we should make a io_fstat... */
-int io_is_dir( const char*path )
+enum filetype_t
 {
+	NORMAL,
+	DIRECTORY,
+	NOTFOUND,
+	OTHER,
+};
 #ifdef WIN32
+
+enum filetype_t io_filetype( const char * path )
+{
 	DWORD res;
 	char realpath[MAX_PATH+1];
+	WCHAR realpath_w[MAX_PATH+1];
 
-	if ( strlen(path) >= sizeof(realpath) ) {
+	if ( strlen(path) >= sizeof(realpath) )
+	{
 		WARN("path too long for io_is_dir(): '%s'", path);
 		return False;
 	}
 
 	slash2backslash( path, realpath );
-	res = GetFileAttributes( realpath );
+	res = MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, realpath, -1, realpath_w, sizeof(realpath_w) );
+	if (res == 0)
+	{
+		DEBUG("error in utf-8 to WCHAR conversion");
+		return False;
+	}
+	res = GetFileAttributesW( realpath_w );
 
 	/* 0xFFFFFFFF is an error as per some old API docs, tested. */
-	if (res == 0 || res == 0xFFFFFFFF) return False;
+	if ( res == INVALID_FILE_ATTRIBUTES ) return NOTFOUND;
 
-	return (res & FILE_ATTRIBUTE_DIRECTORY);
-#else
-	DIR *d;
-	d = opendir(path);
-	if (d == NULL) return False;
-	closedir(d);
-	return True;
-#endif 
+	if (res & FILE_ATTRIBUTE_DIRECTORY) return DIRECTORY;
+	if (res & FILE_ATTRIBUTE_NORMAL) return NORMAL;
+
+	DWORD ign_mask = ~ ((DWORD) 0);
+	/* files can be sparse, readonly, not-indexed, and archivable but still a "normal" file. */
+	/* maybe also allow "compressed" ? */
+	ign_mask = ign_mask & (~ FILE_ATTRIBUTE_SPARSE_FILE );
+	ign_mask = ign_mask & (~ FILE_ATTRIBUTE_READONLY );
+	ign_mask = ign_mask & (~ FILE_ATTRIBUTE_NOT_CONTENT_INDEXED );
+	ign_mask = ign_mask & (~ FILE_ATTRIBUTE_ARCHIVE );
+
+	if ( (res & ign_mask) == 0 ) return NORMAL;
+
+	/* if there are other bits set, those are probably weirdo system/strange files. Just don't allow them... */
+	return OTHER;
 }
+#else
+
+enum filetype_t io_filetype( const char * path )
+{
+	struct stat s;
+	int res;
+	res = stat( path, &s );
+	if (res != 0) return NOTFOUND;
+	if (S_ISDIR(s.st_mode)) return DIRECTORY;
+	if (S_ISREG(s.st_mode)) return NORMAL;
+	return OTHER;
+}
+
+
+#endif
+
 
 #ifdef WIN32
 #define IO_OPEN_FILE_FAIL NULL
+WCHAR path_w[MAX_PATH + 1];
 file_t io_open_file( const char *path, unsigned int options )
 {
 	DWORD e;
 	file_t f;
 	DWORD flags = 0;
 	HANDLE h;
+	int res;
 
 	if ( (options & IO_NONBLOCK) ) flags = FILE_FLAG_OVERLAPPED;
 
 	ASSERT(flags != 0);
 
-	h = CreateFile( path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL );
+	ASSERT( strlen(path) <= MAX_PATH );
+	res = MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, path_w, sizeof(path_w) );
+
+	h = CreateFileW( path_w, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL );
 
 	DEBUG("handle = %x",  (unsigned int) h);
 
@@ -1191,7 +1239,7 @@ unsigned long io_read_file( file_t f, void *buf, size_t count )
 #else
 unsigned long io_read_file( file_t f, void *buf, size_t count )
 {
-	unsigned long res;
+	ssize_t res;
 	res = read( f, buf, count );
 
 	if ( res == -1 )
@@ -1230,12 +1278,14 @@ unsigned long io_read_file( file_t f, void *buf, size_t count )
 #define IO_OPEN_DIR_FAIL NULL
 
 char __io_open_dir_buf[MAX_PATH+2+1];
+WCHAR __io_open_dir_buf_w[MAX_PATH+2+1];
 
 /* FIXME: error handling, remember to set io_errno */
 dir_t* io_open_dir( const char *path )
 {
 	int l;
 	dir_t* ret;
+	int res;
 	ret = malloc(sizeof(dir_t));
 	ret->nomorefiles = False;
 
@@ -1250,12 +1300,18 @@ dir_t* io_open_dir( const char *path )
 	chopslash(__io_open_dir_buf);
 	strcat(__io_open_dir_buf, "\\*");
 
-	DEBUG("find path = '%s'", __io_open_dir_buf);
+	res = MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, __io_open_dir_buf, -1, __io_open_dir_buf_w, sizeof(__io_open_dir_buf_w) );
+	if ( res == 0 ) {
+		DEBUG("conversion from utf-8 to WCHAR failed");
+		return IO_OPEN_DIR_FAIL;
+	}
 
-	ret->h = FindFirstFile( __io_open_dir_buf, &ret->ffd );
+	DEBUG("find path = '%ls'", __io_open_dir_buf_w);
+
+	ret->h = FindFirstFileW( __io_open_dir_buf_w, &ret->ffd );
 	if (ret->h == INVALID_HANDLE_VALUE) return IO_OPEN_DIR_FAIL;
 
-	DEBUG("FindFirstFile found '%s'", ret->ffd.cFileName);
+	DEBUG("FindFirstFile found '%ls'", ret->ffd.cFileName);
 
 	io_errno = SUCCESS;
 	return ret;
@@ -1296,18 +1352,22 @@ dir_t* io_open_dir( const char *path )
 /* FIXME: error handling */
 #ifdef WIN32
 #define IO_READ_DIR_FAIL NULL
-char __io_read_dir_buf[MAX_PATH+1];
+/* this is going to be a utf8 string, which means it *might* expand to four bytes per wchar... */
+char __io_read_dir_buf[MAX_PATH*4+1];
+WCHAR __io_read_dir_buf_w[MAX_PATH+1];
 
 const char *io_read_dir( dir_t *dir )
 {
+	int res;
+
 	if ( dir->nomorefiles ) return NULL;
 
-	ASSERT(strlen(dir->ffd.cFileName) <= MAX_PATH);
-	strcpy(__io_read_dir_buf, dir->ffd.cFileName);
+	ASSERT(wcslen(dir->ffd.cFileName) <= MAX_PATH);
+	wcscpy(__io_read_dir_buf_w, dir->ffd.cFileName);
 
 	io_errno = SUCCESS;
 
-	if (!FindNextFile(dir->h, &dir->ffd))
+	if (!FindNextFileW(dir->h, &dir->ffd))
 	{
 		if (GetLastError() != ERROR_NO_MORE_FILES)
 		{
@@ -1321,7 +1381,12 @@ const char *io_read_dir( dir_t *dir )
 		dir->nomorefiles = True;
 	}
 	else
-		DEBUG("FindNextFile found '%s'", dir->ffd.cFileName);
+		DEBUG("FindNextFile found '%ls'", dir->ffd.cFileName);
+
+	res = WideCharToMultiByte( CP_UTF8, 0, __io_read_dir_buf_w, -1, __io_read_dir_buf, sizeof(__io_read_dir_buf), NULL, NULL);
+
+	if ( res == 0 ) WARN( "Conversion from WCHAR to UTF-8 encoded string failed" );
+
 	return __io_read_dir_buf;
 }
 
@@ -1574,9 +1639,9 @@ enum result_t request_dump_file(struct Request *req )
 
 	DEBUG("reading...");
 
-	/* FIXME: don't continue reading if the output queue is too big */
 	while (rounds--)
 	{
+		if ( lb_length( req->o_queue ) >= MAX_OUTPUT_QUEUE_SIZE ) return CALL_AGAIN;
 		got = io_read_file( f, req->f_buffer, BUF_CHUNK );
 		if (got == 0) break;
 		lb_enqueue( req->o_queue, req->f_buffer, got );
@@ -1767,7 +1832,7 @@ int server_listen()
 
 	res = bind( sock, (struct sockaddr *) &listen_sa, sizeof( listen_sa ) );
 	ASSERTM(res == 0, "Cannot bind to %s:%d", config_bind_addr, config_bind_port);
-	res = listen( sock, 5 );
+	res = listen( sock, MAX_FILE_DESCRIPTORS );
 	ASSERTM(res == 0, "Cannot listen on %s:%d", config_bind_addr, config_bind_port);
 	return sock;
 
@@ -1875,7 +1940,7 @@ void server_select(int listen_sock)
 			res = 1;
 		}
 
-		if ( req->had_enough_input && ! req->o_done )
+		if ( req->had_enough_input && ! req->o_done && lb_length(req->o_queue) < MAX_OUTPUT_QUEUE_SIZE )
 		{
 			tv.tv_usec = 10000; /* FIXME: use some dyanmic self adjusting methods */
 		}
@@ -2192,6 +2257,7 @@ int http_execute_get_basic_filesystem( struct Request *req,
 {
 	enum result_t res, tmp;
 	char *full_path = NULL;
+	enum filetype_t filetyperesult;
 
 	if ( ! is_fs_safe_path( decoded_path ) ) 
 	{
@@ -2212,7 +2278,10 @@ int http_execute_get_basic_filesystem( struct Request *req,
 	strcat(full_path, decoded_path);
 	DEBUG("full path = '%s'", full_path);
 
-	if ( io_is_dir( full_path ) )
+
+	filetyperesult = io_filetype( full_path );
+
+	if ( filetyperesult == DIRECTORY )
 	{
 		/* do a redirection for requests without trailing slash */
 		if ( full_path[strlen(full_path)-1] != '/' ) 
@@ -2263,7 +2332,7 @@ int http_execute_get_basic_filesystem( struct Request *req,
 			}
 		}
 	}
-	else /* ! io_is_dir( full_path ) */
+	else if ( filetyperesult == NORMAL )
 	{
 		switch ( request_start_stream_file( req, full_path ) )
 		{
@@ -2282,6 +2351,10 @@ int http_execute_get_basic_filesystem( struct Request *req,
 				res = HTTP(500);
 				break;
 		}
+	}
+	else
+	{
+		res = HTTP(404);
 	}
 
 
@@ -2677,7 +2750,7 @@ void set_opts(int argc, char *argv[])
 
 	/* sanity check */
 
-	if (config_doc_root != NULL && !io_is_dir(config_doc_root))
+	if (config_doc_root != NULL && io_filetype(config_doc_root) != DIRECTORY )
 	{
 		DIE(EXIT_USER, "Invalid document root: %s", config_doc_root);
 	}
@@ -3125,7 +3198,7 @@ FILETYPE VFT_APP
 			VALUE "FileVersion", ONEHTTPD_VERSION_STRING
 			VALUE "FileDescription", "The One HTTP Server"
 			VALUE "InternalName", "onehttpd.exe"
-			VALUE "LegalCopyright", "Copyright (C) 2008-2009 Sidney Fong (GPLv2)"
+			VALUE "LegalCopyright", "Copyright (C) 2008-2010 Sidney Fong (GPLv2)"
 			VALUE "OriginalFilename", "onehttpd.exe"
 			VALUE "ProductName", "OneHTTPD Web Server"
 			VALUE "ProductVersion", ""
