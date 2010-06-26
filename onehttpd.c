@@ -1717,7 +1717,7 @@ enum result_t request_list_directory( struct Request *req, const char *path )
 	if (http_decode_uri_abs_path( req->request_uri, decoded_path, NULL ) != SUCCESS)
 		return FAIL_SYS;
 
-	lb_enqueue_str( req->o_queue, "<html><head><title>Index of " );
+	lb_enqueue_str( req->o_queue, "<html><head><meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\"><title>Index of " );
 	lb_enqueue_str( req->o_queue, decoded_path );
 	lb_enqueue_str( req->o_queue, "</title></head><body><h1>Index of " );
 	lb_enqueue_str( req->o_queue, decoded_path );
