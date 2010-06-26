@@ -29,6 +29,7 @@
 "  -Q       Very quiet, only show fatal errors                              \n"\
 "  -v       Verbose, show informative messages                              \n"\
 "  -V       Very verbose, show also debug messages                          \n"\
+"  -d       Run a dummy server that serves a static page instead of DOCROOT \n"\
 "                                                                           \n"\
 "Example: onehttpd.exe C:\\WWW         # Serve files in C:\\WWW on port 8080  \n"\
 "Example: onehttpd -p 8008 /var/www   # Serve files in /var/www on port 8008\n"\
@@ -420,6 +421,7 @@ const char mime_dataraw[] =
 /* index of requests[] is the file descriptor */
 struct Request *requests[MAX_FILE_DESCRIPTORS];
 
+char config_dummy = False;
 char config_list_directories = True;
 int config_bind_port = 8080;
 char *config_bind_addr = NULL; /* TODO */
@@ -2363,6 +2365,23 @@ int http_execute_get_basic_filesystem( struct Request *req,
 	return res;
 }
 
+int http_execute_get_dummy( struct Request *req )
+{
+	int printed;
+
+	ASSERT( lb_length( req->o_queue ) == 0 );
+	ASSERT( req->o_done == False );
+	ASSERT( req->h_sent == False );
+
+	request_enqueue_header_str( req, "Content-Type: text/html\r\n" );
+	printed = snprintf( buf256, sizeof(buf256),
+			"<html><head><title>Dummy Page</title></head>"
+			"<body><h1>Dummy Page</h1><p>This is a dummy page for onehttpd.</p></body></html>" );
+	lb_enqueue( req->o_queue, buf256, printed );
+	req->o_done = True;
+	return HTTP(200);
+}
+
 void http_boilerplate_response( struct Request *req, int status_code )
 {
 	const char *desc;
@@ -2412,8 +2431,14 @@ void http_execute_get( struct Request *req )
 		DEBUG("decoded path = '%s'", decoded_path);
 
 		/* we insert dynamic stuff here */
-
-		res = http_execute_get_basic_filesystem( req, decoded_path );
+		if ( config_dummy )
+		{
+			res = http_execute_get_dummy( req );
+		}
+		else
+		{
+			res = http_execute_get_basic_filesystem( req, decoded_path );
+		}
 
 	} while (False);
 
@@ -2692,6 +2717,8 @@ cleanup:
 			(req->ver_major >= 0 ? req->ver_major : 0),
 			(req->ver_minor >= 0 ? req->ver_minor : 0),
 			(req->user_agent == NULL ? "-" : req->user_agent ) );
+
+	fflush( stdout );
 }
 
 /* )******** SETOPTS ******* (*/
@@ -2737,6 +2764,9 @@ void set_opts(int argc, char *argv[])
 				case 'G':
 					fprintf(stderr, LEGALNOTICE);
 					exit(0);
+					break;
+				case 'd':
+					config_dummy = True;
 					break;
 			}
 		}
@@ -2813,7 +2843,7 @@ int main(int argc, char *argv[])
 	DEBUG("sizeof(struct Request) = %zd", sizeof(struct Request));
 	DEBUG("sizeof(struct LinkedBlockItem) = %zd", sizeof(struct LinkedBlockItem));
 
-	if (config_doc_root == NULL)
+	if (config_doc_root == NULL && (! config_dummy ) )
 	{
 		fprintf(stderr, USAGE);
 #ifdef WIN32
