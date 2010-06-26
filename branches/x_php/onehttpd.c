@@ -2465,6 +2465,89 @@ void http_execute_get( struct Request *req )
 	if (decoded_path != NULL) free(decoded_path);
 }
 
+void http_execute_post_x_php( struct Request *req )
+{
+	FILE *fp = NULL;
+	int keylen = 0;
+	int valulen = 0;
+	char *data = NULL;
+	const char *nextkey;
+	const char *key = req->req_content;
+	const char *valu;
+	const char *END = req->i_buffer + req->i_buffer_len;
+
+	while (1) {
+		for (valu = key; valu != END; valu++) {
+			if (*valu == '=') {
+				keylen = valu-key;
+				valu++;
+				break;
+			}
+		}
+		if (valu >= END) break;
+
+		for (nextkey = valu; ; nextkey++) {
+			if (*nextkey == '&' || nextkey == END) {
+				valulen = nextkey-valu;
+				nextkey++;
+				break;
+			}
+		}
+
+		char *k = malloc(keylen+1);
+		char *v = malloc(valulen+1);
+		memcpy(k, key, keylen);
+		k[keylen] = 0;
+
+		memcpy(v, valu, valulen);
+		v[valulen] = 0;
+
+		DEBUG("key=[%s],value=[%s]", k, v);
+
+		if (strcmp("filename", k) == 0) {
+			char *fn = malloc( strlen(config_doc_root) + valulen + 1 + 1);
+			strcpy(fn, config_doc_root);
+			strcat(fn, "/");
+			strcat(fn, v);
+			slash2backslash(fn, fn);
+			DEBUG("opening file [%s]", fn);
+			fp = fopen(fn, "a");  // FIXME: no checking XD
+			free(fn);
+		}
+
+		if (strcmp("data", k)) {
+			data = malloc(valulen+1);
+			strcpy(data, v);
+		}
+
+		free(k);
+		free(v);
+
+		if (nextkey >= END) break;
+		key = nextkey;
+	}
+
+	if (fp != NULL) {
+		if (data != NULL) {
+			fprintf(fp, "%s\n", data);
+			free(data);
+		}
+		fclose(fp);
+	}
+
+	http_boilerplate_response( req, HTTP(200) );
+}
+
+void http_execute_post( struct Request *req ) 
+{
+	DEBUG("POST! %s", req->request_uri);
+	if (strcmp("/x.php", req->request_uri ) == 0) {
+		http_execute_post_x_php( req );
+	} else {
+		http_boilerplate_response( req, HTTP(404) );
+	}
+}
+
 /* uses a static buffer */
 char *http_date( time_t t )
 {
@@ -2670,6 +2753,9 @@ void http_process( struct Request *req )
 	{
 		case GET:
 			http_execute_get(req);
+			break;
+		case POST:
+			http_execute_post(req);
 			break;
 		default:
 			http_boilerplate_response( req, HTTP(501) );
