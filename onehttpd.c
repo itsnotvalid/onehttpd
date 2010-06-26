@@ -98,7 +98,7 @@ all: onehttpd onehttpd.exe
 
 # just need to consider distributing the win32 exe.
 dist: onehttpd.exe
-	cp onehttpd.exe onehttpd-${ONEHTTPD_VERSION_MAJOR}.${ONEHTTPD_VERSION_MINOR}.exe && i586-mingw32msvc-strip onehttpd-${ONEHTTPD_VERSION_MAJOR}.${ONEHTTPD_VERSION_MINOR}.exe; chmod 644 onehttpd-${ONEHTTPD_VERSION_MAJOR}.${ONEHTTPD_VERSION_MINOR}.exe; cp onehttpd.c onehttpd-${ONEHTTPD_VERSION_MAJOR}.${ONEHTTPD_VERSION_MINOR}.c; echo 'REMEMBER TO BUMP VERSION';
+	mkdir -p dist/ && cp onehttpd.exe dist/onehttpd-${ONEHTTPD_VERSION_MAJOR}.${ONEHTTPD_VERSION_MINOR}.exe && i586-mingw32msvc-strip dist/onehttpd-${ONEHTTPD_VERSION_MAJOR}.${ONEHTTPD_VERSION_MINOR}.exe; chmod 644 dist/onehttpd-${ONEHTTPD_VERSION_MAJOR}.${ONEHTTPD_VERSION_MINOR}.exe; cp onehttpd.c dist/onehttpd-${ONEHTTPD_VERSION_MAJOR}.${ONEHTTPD_VERSION_MINOR}.c; echo 'REMEMBER TO BUMP VERSION';
 
 onehttpd: onehttpd.c
 	gcc -Wall -g -fno-strict-aliasing onehttpd.c -o onehttpd
