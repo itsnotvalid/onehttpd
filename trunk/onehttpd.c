@@ -151,10 +151,11 @@ define begin_c_program
 #define MAX_FILE_DESCRIPTORS 64
 
 /* ******** INCLUDES ******* (*/
+#include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <time.h>
 
 #ifdef WIN32
@@ -165,7 +166,6 @@ define begin_c_program
 #include <windows.h>
 typedef int socklen_t;
 typedef DWORD err_t;
-#define INT_MAX ((int) ( (-1) &  (~ (1 << ( sizeof(int) * 8 - 1 ))) ) )
 #define close(fd) closesocket(fd)
 
 struct __file_t {
@@ -2373,7 +2373,7 @@ int http_execute_get_dummy( struct Request *req )
 	ASSERT( req->o_done == False );
 	ASSERT( req->h_sent == False );
 
-	request_enqueue_header_str( req, "Content-Type: text/html\r\n" );
+	request_enqueue_header_str( req, "Content-Type: text/html; charset=utf-8\r\n" );
 	printed = snprintf( buf256, sizeof(buf256),
 			"<html><head><title>Dummy Page</title></head>"
 			"<body><h1>Dummy Page</h1><p>This is a dummy page for onehttpd.</p></body></html>" );
