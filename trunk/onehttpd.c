@@ -30,6 +30,7 @@
 "  -v       Verbose, show informative messages                              \n"\
 "  -V       Very verbose, show also debug messages                          \n"\
 "  -d       Run a dummy server that serves a static page instead of DOCROOT \n"\
+"  -u       Use 'charset=utf-8' in Content-Type for text files and listings.\n"\
 "                                                                           \n"\
 "Example: onehttpd.exe C:\\WWW         # Serve files in C:\\WWW on port 8080  \n"\
 "Example: onehttpd -p 8008 /var/www   # Serve files in /var/www on port 8008\n"\
@@ -415,19 +416,80 @@ int mime_num = 0;
 const char *mime_HTML = NULL;
 
 /* mime data grabbed from /etc/mime.types (Debian) with an associated extension, double null terminated */
+/*  cat /etc/mime.types |  perl -ne 'next if not /\t+/; chomp; ($a, $b) = split(/\t+/); @exts = split(/\s/, $b); foreach (@exts) { print "$_\\000$a\\000"; } ' */
 const char mime_dataraw[] = 
-"323\0text/h323\03gp\0video/3gpp\07z\0application/x-7z-compressed\0abw\0application/x-abiword\0aif\0audio/x-aiff\0alc\0chemical/x-alchemy\0art\0image/x-jg\0asc\0text/plain\0asf\0video/x-ms-asf\0asn\0chemical/x-ncbi-asn1\0asn\0chemical/x-ncbi-asn1-spec\0atom\0application/atom\0atomcat\0application/atomcat+xml\0atomsrv\0application/atomserv+xml\0au\0audio/basic\0avi\0video/x-msvideo\0b\0chemical/x-molconn-Z\0bcpio\0application/x-bcpio\0bib\0text/x-bibtex\0bin\0application/octet-stream\0bmp\0image/x-ms-bmp\0boo\0text/x-boo\0bsd\0chemical/x-crossfire\0c\0text/x-csrc\0c++\0text/x-c++src\0c3d\0chemical/x-chem3d\0cab\0application/x-cab\0cac\0chemical/x-cache\0cap\0application/cap\0cat\0application/vnd.ms-pki.seccat\0cbin\0chemical/x-cactvs-binary\0cbr\0application/x-cbr\0cbz\0application/x-cbz\0cdf\0application/x-cdf\0cdr\0image/x-coreldraw\0cdt\0image/x-coreldrawtemplate\0cdx\0chemical/x-cdx\0cdy\0application/vnd.cinderella\0cer\0chemical/x-cerius\0chm\0chemical/x-chemdraw\0chrt\0application/x-kchart\0cif\0chemical/x-cif\0class\0application/java-vm\0cmdf\0chemical/x-cmdf\0cml\0chemical/x-cml\0cod\0application/vnd.rim.cod\0com\0application/x-msdos-program\0cpa\0chemical/x-compass\0cpio\0application/x-cpio\0cpt\0application/mac-compactpro\0cpt\0image/x-corelphotopaint\0crl\0application/x-pkcs7-crl\0crt\0application/x-x509-ca-cert\0csf\0chemical/x-cache-csf\0csh\0application/x-csh\0csh\0text/x-csh\0csml\0chemical/x-csml\0css\0text/css\0csv\0text/csv\0ctx\0chemical/x-ctx\0cu\0application/cu-seeme\0cub\0chemical/x-gaussian-cube\0cxf\0chemical/x-cxf\0d\0text/x-dsrc\0dcr\0application/x-director\0deb\0application/x-debian-package\0dif\0video/dv\0diff\0text/x-diff\0djvu\0image/vnd.djvu\0dl\0video/dl\0dmg\0application/x-apple-diskimage\0dms\0application/x-dms\0doc\0application/msword\0dvi\0application/x-dvi\0emb\0chemical/x-embl-dl-nucleotide\0eml\0message/rfc822\0etx\0text/x-setext\0ez\0application/andrew-inset\0fch\0chemical/x-gaussian-checkpoint\0fig\0application/x-xfig\0flac\0application/x-flac\0fli\0video/fli\0frm\0application/x-maker\0gal\0chemical/x-gaussian-log\0gau\0chemical/x-gaussian-input\0gcd\0text/x-pcs-gcd\0gcf\0application/x-graphing-calculator\0gcg\0chemical/x-gcg8-sequence\0gen\0chemical/x-genbank\0gf\0application/x-tex-gf\0gif\0image/gif\0gl\0video/gl\0gnumeric\0application/x-gnumeric\0gpt\0chemical/x-mopac-graph\0gsm\0audio/x-gsm\0gtar\0application/x-gtar\0h\0text/x-chdr\0h++\0text/x-c++hdr\0hdf\0application/x-hdf\0hin\0chemical/x-hin\0hqx\0application/mac-binhex40\0hs\0text/x-haskell\0hta\0application/hta\0htc\0text/x-component\0html\0text/html\0ica\0application/x-ica\0ice\0x-conference/x-cooltalk\0ico\0image/x-icon\0ics\0text/calendar\0ief\0image/ief\0igs\0model/iges\0iii\0application/x-iphone\0inp\0chemical/x-gamess-input\0ins\0application/x-internet-signup\0iso\0application/x-iso9660-image\0istr\0chemical/x-isostar\0jad\0text/vnd.sun.j2me.app-descriptor\0jar\0application/java-archive\0java\0text/x-java\0jdx\0chemical/x-jcamp-dx\0jmz\0application/x-jmol\0jng\0image/x-jng\0jnlp\0application/x-java-jnlp-file\0jpeg\0image/jpeg\0js\0application/x-javascript\0key\0application/pgp-keys\0kil\0application/x-killustrator\0kin\0chemical/x-kinemage\0kml\0application/vnd.google-earth.kml+xml\0kmz\0application/vnd.google-earth.kmz\0kpr\0application/x-kpresenter\0ksp\0application/x-kspread\0kwd\0application/x-kword\0latex\0application/x-latex\0lha\0application/x-lha\0lhs\0text/x-literate-haskell\0lsf\0video/x-la-asf\0lyx\0application/x-lyx\0lzh\0application/x-lzh\0lzx\0application/x-lzx\0m3u\0audio/mpegurl\0m3u\0audio/x-mpegurl\0man\0application/x-troff-man\0mcif\0chemical/x-mmcif\0mcm\0chemical/x-macmolecule\0mdb\0application/msaccess\0me\0application/x-troff-me\0mid\0audio/midi\0mif\0#chemical/x-mif\0mif\0application/x-mif\0mm\0application/x-freemind\0mmd\0chemical/x-macromodel-input\0mmf\0application/vnd.smaf\0mml\0text/mathml\0mng\0video/x-mng\0moc\0text/x-moc\0mol\0chemical/x-mdl-molfile\0mol2\0chemical/x-mol2\0moo\0chemical/x-mopac-out\0mop\0chemical/x-mopac-input\0movie\0video/x-sgi-movie\0mp4\0video/mp4\0mpeg\0video/mpeg\0mpga\0audio/mpeg\0ms\0application/x-troff-ms\0msh\0model/mesh\0msi\0application/x-msi\0mvb\0chemical/x-mopac-vib\0mxu\0video/vnd.mpegurl\0nb\0application/mathematica\0nc\0application/x-netcdf\0nwc\0application/x-nwc\0o\0application/x-object\0oda\0application/oda\0odb\0application/vnd.oasis.opendocument.database\0odc\0application/vnd.oasis.opendocument.chart\0odf\0application/vnd.oasis.opendocument.formula\0odg\0application/vnd.oasis.opendocument.graphics\0odi\0application/vnd.oasis.opendocument.image\0odm\0application/vnd.oasis.opendocument.text-master\0odp\0application/vnd.oasis.opendocument.presentation\0ods\0application/vnd.oasis.opendocument.spreadsheet\0odt\0application/vnd.oasis.opendocument.text\0ogg\0application/ogg\0otg\0application/vnd.oasis.opendocument.graphics-template\0oth\0application/vnd.oasis.opendocument.text-web\0otp\0application/vnd.oasis.opendocument.presentation-template\0ots\0application/vnd.oasis.opendocument.spreadsheet-template\0ott\0application/vnd.oasis.opendocument.text-template\0oza\0application/x-oz-application\0p\0text/x-pascal\0p7r\0application/x-pkcs7-certreqresp\0pac\0application/x-ns-proxy-autoconfig\0pat\0image/x-coreldrawpattern\0pbm\0image/x-portable-bitmap\0pcx\0image/pcx\0pdb\0chemical/x-pdb\0pdf\0application/pdf\0pfa\0application/x-font\0pgm\0image/x-portable-graymap\0pgn\0application/x-chess-pgn\0pgp\0application/pgp-signature\0php3\0application/x-httpd-php3\0php3p\0application/x-httpd-php3-preprocessed\0php4\0application/x-httpd-php4\0phps\0application/x-httpd-php-source\0phtml\0application/x-httpd-php\0pk\0application/x-tex-pk\0pl\0text/x-perl\0pls\0audio/x-scpls\0png\0image/png\0pnm\0image/x-portable-anymap\0ppm\0image/x-portable-pixmap\0ppt\0application/vnd.ms-powerpoint\0prf\0application/pics-rules\0prt\0chemical/x-ncbi-asn1-ascii\0ps\0application/postscript\0psd\0image/x-photoshop\0py\0text/x-python\0pyc\0application/x-python-code\0qt\0video/quicktime\0qtl\0application/x-quicktimeplayer\0ra\0audio/x-pn-realaudio\0ra\0audio/x-realaudio\0rar\0application/rar\0ras\0image/x-cmu-raster\0rd\0chemical/x-mdl-rdfile\0rdf\0application/rdf+xml\0rgb\0image/x-rgb\0rhtml\0application/x-httpd-eruby\0ros\0chemical/x-rosdal\0rpm\0application/x-redhat-package-manager\0rss\0application/rss+xml\0rtf\0application/rtf\0rtx\0text/richtext\0rxn\0chemical/x-mdl-rxnfile\0sct\0text/scriptlet\0sd\0chemical/x-mdl-sdfile\0sd2\0audio/x-sd2\0sda\0application/vnd.stardivision.draw\0sdc\0application/vnd.stardivision.calc\0sdd\0application/vnd.stardivision.impress\0sdf\0application/vnd.stardivision.math\0sds\0application/vnd.stardivision.chart\0sdw\0application/vnd.stardivision.writer\0ser\0application/java-serialized-object\0sgf\0application/x-go-sgf\0sgl\0application/vnd.stardivision.writer-global\0sh\0application/x-sh\0sh\0text/x-sh\0shar\0application/x-shar\0sid\0audio/prs.sid\0sis\0application/vnd.symbian.install\0sisx\0x-epoc/x-sisx-app\0sit\0application/x-stuffit\0skp\0application/x-koan\0smi\0#chemical/x-daylight-smiles\0smi\0application/smil\0spc\0chemical/x-galactic-spc\0spl\0application/futuresplash\0spl\0application/x-futuresplash\0src\0application/x-wais-source\0stc\0application/vnd.sun.xml.calc.template\0std\0application/vnd.sun.xml.draw.template\0sti\0application/vnd.sun.xml.impress.template\0stl\0application/vnd.ms-pki.stl\0stw\0application/vnd.sun.xml.writer.template\0sv4cpio\0application/x-sv4cpio\0sv4crc\0application/x-sv4crc\0svg\0image/svg+xml\0sw\0chemical/x-swissprot\0swf\0application/x-shockwave-flash\0sxc\0application/vnd.sun.xml.calc\0sxd\0application/vnd.sun.xml.draw\0sxg\0application/vnd.sun.xml.writer.global\0sxi\0application/vnd.sun.xml.impress\0sxm\0application/vnd.sun.xml.math\0sxw\0application/vnd.sun.xml.writer\0t\0application/x-troff\0tar\0application/x-tar\0tcl\0application/x-tcl\0tcl\0text/x-tcl\0tex\0text/x-tex\0texinfo\0application/x-texinfo\0tgf\0chemical/x-mdl-tgf\0tiff\0image/tiff\0tm\0text/texmacs\0torrent\0application/x-bittorrent\0tsp\0application/dsptype\0tsv\0text/tab-separated-values\0uls\0text/iuls\0ustar\0application/x-ustar\0val\0chemical/x-ncbi-asn1-binary\0vcd\0application/x-cdlink\0vcf\0text/x-vcard\0vcs\0text/x-vcalendar\0vmd\0chemical/x-vmd\0vms\0chemical/x-vamas-iso14976\0vrm\0x-world/x-vrml\0vsd\0application/vnd.visio\0wad\0application/x-doom\0wav\0audio/x-wav\0wax\0audio/x-ms-wax\0wbmp\0image/vnd.wap.wbmp\0wbxml\0application/vnd.wap.wbxml\0wk\0application/x-123\0wm\0video/x-ms-wm\0wma\0audio/x-ms-wma\0wmd\0application/x-ms-wmd\0wml\0text/vnd.wap.wml\0wmlc\0application/vnd.wap.wmlc\0wmls\0text/vnd.wap.wmlscript\0wmlsc\0application/vnd.wap.wmlscriptc\0wmv\0video/x-ms-wmv\0wmx\0video/x-ms-wmx\0wmz\0application/x-ms-wmz\0wp5\0application/wordperfect5.1\0wpd\0application/wordperfect\0wrl\0model/vrml\0wvx\0video/x-ms-wvx\0wz\0application/x-wingz\0xbm\0image/x-xbitmap\0xcf\0application/x-xcf\0xhtml\0application/xhtml+xml\0xls\0application/vnd.ms-excel\0xml\0application/xml\0xpi\0application/x-xpinstall\0xpm\0image/x-xpixmap\0xtel\0chemical/x-xtel\0xul\0application/vnd.mozilla.xul+xml\0xwd\0image/x-xwindowdump\0xyz\0chemical/x-xyz\0zip\0application/zip\0\0";
+"ez\000application/andrew-inset\000anx\000application/annodex\000atom\000application/atom+xml\000atomcat\000application/atomcat+xml\000atomsrv\000application/atomserv+xml\000lin\000application/bbolin\000cap\000application/cap\000pcap\000application/cap\000cu\000application/cu-seeme\000davmount\000application/davmount+xml\000tsp\000application/dsptype\000es\000application/ecmascript\000spl\000application/futuresplash\000hta\000application/hta\000jar\000application/java-archive\000ser\000application/java-serialized-object\000class\000application/java-vm\000js\000application/javascript\000m3g\000application/m3g\000hqx\000application/mac-binhex40\000cpt\000application/mac-compactpro\000nb\000application/mathematica\000nbp\000application/mathematica\000mdb\000application/msaccess\000doc\000application/msword\000dot\000application/msword\000mxf\000application/mxf\000bin\000application/octet-stream\000oda\000application/oda\000ogx\000application/ogg\000pdf\000application/pdf\000key\000application/pgp-keys\000pgp\000application/pgp-signature\000prf\000application/pics-rules\000ps\000application/postscript\000ai\000application/postscript\000eps\000application/postscript\000epsi\000application/postscript\000epsf\000application/postscript\000eps2\000application/postscript\000eps3\000application/postscript\000rar\000application/rar\000rdf\000application/rdf+xml\000rss\000application/rss+xml\000rtf\000application/rtf\000smi\000application/smil\000smil\000application/smil\000xhtml\000application/xhtml+xml\000xht\000application/xhtml+xml\000xml\000application/xml\000xsl\000application/xml\000xsd\000application/xml\000xspf\000application/xspf+xml\000zip\000application/zip\000apk\000application/vnd.android.package-archive\000cdy\000application/vnd.cinderella\000kml\000application/vnd.google-earth.kml+xml\000kmz\000application/vnd.google-earth.kmz\000xul\000application/vnd.mozilla.xul+xml\000xls\000application/vnd.ms-excel\000xlb\000application/vnd.ms-excel\000xlt\000application/vnd.ms-excel\000cat\000application/vnd.ms-pki.seccat\000stl\000application/vnd.ms-pki.stl\000ppt\000application/vnd.ms-powerpoint\000pps\000application/vnd.ms-powerpoint\000odc\000application/vnd.oasis.opendocument.chart\000odb\000application/vnd.oasis.opendocument.database\000odf\000application/vnd.oasis.opendocument.formula\000odg\000application/vnd.oasis.opendocument.graphics\000otg\000application/vnd.oasis.opendocument.graphics-template\000odi\000application/vnd.oasis.opendocument.image\000odp\000application/vnd.oasis.opendocument.presentation\000otp\000application/vnd.oasis.opendocument.presentation-template\000ods\000application/vnd.oasis.opendocument.spreadsheet\000ots\000application/vnd.oasis.opendocument.spreadsheet-template\000odt\000application/vnd.oasis.opendocument.text\000odm\000application/vnd.oasis.opendocument.text-master\000ott\000application/vnd.oasis.opendocument.text-template\000oth\000application/vnd.oasis.opendocument.text-web\000xlsx\000application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\000xltx\000application/vnd.openxmlformats-officedocument.spreadsheetml.template\000pptx\000application/vnd.openxmlformats-officedocument.presentationml.presentation\000ppsx\000application/vnd.openxmlformats-officedocument.presentationml.slideshow\000potx\000application/vnd.openxmlformats-officedocument.presentationml.template\000docx\000application/vnd.openxmlformats-officedocument.wordprocessingml.document\000dotx\000application/vnd.openxmlformats-officedocument.wordprocessingml.template\000cod\000application/vnd.rim.cod\000mmf\000application/vnd.smaf\000sdc\000application/vnd.stardivision.calc\000sds\000application/vnd.stardivision.chart\000sda\000application/vnd.stardivision.draw\000sdd\000application/vnd.stardivision.impress\000sdf\000application/vnd.stardivision.math\000sdw\000application/vnd.stardivision.writer\000sgl\000application/vnd.stardivision.writer-global\000sxc\000application/vnd.sun.xml.calc\000stc\000application/vnd.sun.xml.calc.template\000sxd\000application/vnd.sun.xml.draw\000std\000application/vnd.sun.xml.draw.template\000sxi\000application/vnd.sun.xml.impress\000sti\000application/vnd.sun.xml.impress.template\000sxm\000application/vnd.sun.xml.math\000sxw\000application/vnd.sun.xml.writer\000sxg\000application/vnd.sun.xml.writer.global\000stw\000application/vnd.sun.xml.writer.template\000sis\000application/vnd.symbian.install\000vsd\000application/vnd.visio\000wbxml\000application/vnd.wap.wbxml\000wmlc\000application/vnd.wap.wmlc\000wmlsc\000application/vnd.wap.wmlscriptc\000wpd\000application/vnd.wordperfect\000wp5\000application/vnd.wordperfect5.1\000wk\000application/x-123\0007z\000application/x-7z-compressed\000abw\000application/x-abiword\000dmg\000application/x-apple-diskimage\000bcpio\000application/x-bcpio\000torrent\000application/x-bittorrent\000cab\000application/x-cab\000cbr\000application/x-cbr\000cbz\000application/x-cbz\000cdf\000application/x-cdf\000cda\000application/x-cdf\000vcd\000application/x-cdlink\000pgn\000application/x-chess-pgn\000cpio\000application/x-cpio\000csh\000application/x-csh\000deb\000application/x-debian-package\000udeb\000application/x-debian-package\000dcr\000application/x-director\000dir\000application/x-director\000dxr\000application/x-director\000dms\000application/x-dms\000wad\000application/x-doom\000dvi\000application/x-dvi\000rhtml\000application/x-httpd-eruby\000pfa\000application/x-font\000pfb\000application/x-font\000gsf\000application/x-font\000pcf\000application/x-font\000pcf.Z\000application/x-font\000mm\000application/x-freemind\000spl\000application/x-futuresplash\000gnumeric\000application/x-gnumeric\000sgf\000application/x-go-sgf\000gcf\000application/x-graphing-calculator\000gtar\000application/x-gtar\000tgz\000application/x-gtar\000taz\000application/x-gtar\000hdf\000application/x-hdf\000phtml\000application/x-httpd-php\000pht\000application/x-httpd-php\000php\000application/x-httpd-php\000phps\000application/x-httpd-php-source\000php3\000application/x-httpd-php3\000php3p\000application/x-httpd-php3-preprocessed\000php4\000application/x-httpd-php4\000php5\000application/x-httpd-php5\000ica\000application/x-ica\000info\000application/x-info\000ins\000application/x-internet-signup\000isp\000application/x-internet-signup\000iii\000application/x-iphone\000iso\000application/x-iso9660-image\000jam\000application/x-jam\000jnlp\000application/x-java-jnlp-file\000jmz\000application/x-jmol\000chrt\000application/x-kchart\000kil\000application/x-killustrator\000skp\000application/x-koan\000skd\000application/x-koan\000skt\000application/x-koan\000skm\000application/x-koan\000kpr\000application/x-kpresenter\000kpt\000application/x-kpresenter\000ksp\000application/x-kspread\000kwd\000application/x-kword\000kwt\000application/x-kword\000latex\000application/x-latex\000lha\000application/x-lha\000lyx\000application/x-lyx\000lzh\000application/x-lzh\000lzx\000application/x-lzx\000frm\000application/x-maker\000maker\000application/x-maker\000frame\000application/x-maker\000fm\000application/x-maker\000fb\000application/x-maker\000book\000application/x-maker\000fbdoc\000application/x-maker\000mif\000application/x-mif\000wmd\000application/x-ms-wmd\000wmz\000application/x-ms-wmz\000com\000application/x-msdos-program\000exe\000application/x-msdos-program\000bat\000application/x-msdos-program\000dll\000application/x-msdos-program\000msi\000application/x-msi\000nc\000application/x-netcdf\000pac\000application/x-ns-proxy-autoconfig\000dat\000application/x-ns-proxy-autoconfig\000nwc\000application/x-nwc\000o\000application/x-object\000oza\000application/x-oz-application\000p7r\000application/x-pkcs7-certreqresp\000crl\000application/x-pkcs7-crl\000pyc\000application/x-python-code\000pyo\000application/x-python-code\000qgs\000application/x-qgis\000shp\000application/x-qgis\000shx\000application/x-qgis\000qtl\000application/x-quicktimeplayer\000rpm\000application/x-redhat-package-manager\000rb\000application/x-ruby\000sh\000application/x-sh\000shar\000application/x-shar\000swf\000application/x-shockwave-flash\000swfl\000application/x-shockwave-flash\000scr\000application/x-silverlight\000sit\000application/x-stuffit\000sitx\000application/x-stuffit\000sv4cpio\000application/x-sv4cpio\000sv4crc\000application/x-sv4crc\000tar\000application/x-tar\000tcl\000application/x-tcl\000gf\000application/x-tex-gf\000pk\000application/x-tex-pk\000texinfo\000application/x-texinfo\000texi\000application/x-texinfo\000~\000application/x-trash\000%\000application/x-trash\000bak\000application/x-trash\000old\000application/x-trash\000sik\000application/x-trash\000t\000application/x-troff\000tr\000application/x-troff\000roff\000application/x-troff\000man\000application/x-troff-man\000me\000application/x-troff-me\000ms\000application/x-troff-ms\000ustar\000application/x-ustar\000src\000application/x-wais-source\000wz\000application/x-wingz\000crt\000application/x-x509-ca-cert\000xcf\000application/x-xcf\000fig\000application/x-xfig\000xpi\000application/x-xpinstall\000amr\000audio/amr\000awb\000audio/amr-wb\000amr\000audio/amr\000awb\000audio/amr-wb\000axa\000audio/annodex\000au\000audio/basic\000snd\000audio/basic\000flac\000audio/flac\000mid\000audio/midi\000midi\000audio/midi\000kar\000audio/midi\000mpga\000audio/mpeg\000mpega\000audio/mpeg\000mp2\000audio/mpeg\000mp3\000audio/mpeg\000m4a\000audio/mpeg\000m3u\000audio/mpegurl\000oga\000audio/ogg\000ogg\000audio/ogg\000spx\000audio/ogg\000sid\000audio/prs.sid\000aif\000audio/x-aiff\000aiff\000audio/x-aiff\000aifc\000audio/x-aiff\000gsm\000audio/x-gsm\000m3u\000audio/x-mpegurl\000wma\000audio/x-ms-wma\000wax\000audio/x-ms-wax\000ra\000audio/x-pn-realaudio\000rm\000audio/x-pn-realaudio\000ram\000audio/x-pn-realaudio\000ra\000audio/x-realaudio\000pls\000audio/x-scpls\000sd2\000audio/x-sd2\000wav\000audio/x-wav\000alc\000chemical/x-alchemy\000cac\000chemical/x-cache\000cache\000chemical/x-cache\000csf\000chemical/x-cache-csf\000cbin\000chemical/x-cactvs-binary\000cascii\000chemical/x-cactvs-binary\000ctab\000chemical/x-cactvs-binary\000cdx\000chemical/x-cdx\000cer\000chemical/x-cerius\000c3d\000chemical/x-chem3d\000chm\000chemical/x-chemdraw\000cif\000chemical/x-cif\000cmdf\000chemical/x-cmdf\000cml\000chemical/x-cml\000cpa\000chemical/x-compass\000bsd\000chemical/x-crossfire\000csml\000chemical/x-csml\000csm\000chemical/x-csml\000ctx\000chemical/x-ctx\000cxf\000chemical/x-cxf\000cef\000chemical/x-cxf\000smi\000#chemical/x-daylight-smiles\000emb\000chemical/x-embl-dl-nucleotide\000embl\000chemical/x-embl-dl-nucleotide\000spc\000chemical/x-galactic-spc\000inp\000chemical/x-gamess-input\000gam\000chemical/x-gamess-input\000gamin\000chemical/x-gamess-input\000fch\000chemical/x-gaussian-checkpoint\000fchk\000chemical/x-gaussian-checkpoint\000cub\000chemical/x-gaussian-cube\000gau\000chemical/x-gaussian-input\000gjc\000chemical/x-gaussian-input\000gjf\000chemical/x-gaussian-input\000gal\000chemical/x-gaussian-log\000gcg\000chemical/x-gcg8-sequence\000gen\000chemical/x-genbank\000hin\000chemical/x-hin\000istr\000chemical/x-isostar\000ist\000chemical/x-isostar\000jdx\000chemical/x-jcamp-dx\000dx\000chemical/x-jcamp-dx\000kin\000chemical/x-kinemage\000mcm\000chemical/x-macmolecule\000mmd\000chemical/x-macromodel-input\000mmod\000chemical/x-macromodel-input\000mol\000chemical/x-mdl-molfile\000rd\000chemical/x-mdl-rdfile\000rxn\000chemical/x-mdl-rxnfile\000sd\000chemical/x-mdl-sdfile\000sdf\000chemical/x-mdl-sdfile\000tgf\000chemical/x-mdl-tgf\000mif\000#chemical/x-mif\000mcif\000chemical/x-mmcif\000mol2\000chemical/x-mol2\000b\000chemical/x-molconn-Z\000gpt\000chemical/x-mopac-graph\000mop\000chemical/x-mopac-input\000mopcrt\000chemical/x-mopac-input\000mpc\000chemical/x-mopac-input\000zmt\000chemical/x-mopac-input\000moo\000chemical/x-mopac-out\000mvb\000chemical/x-mopac-vib\000asn\000chemical/x-ncbi-asn1\000prt\000chemical/x-ncbi-asn1-ascii\000ent\000chemical/x-ncbi-asn1-ascii\000val\000chemical/x-ncbi-asn1-binary\000aso\000chemical/x-ncbi-asn1-binary\000asn\000chemical/x-ncbi-asn1-spec\000pdb\000chemical/x-pdb\000ent\000chemical/x-pdb\000ros\000chemical/x-rosdal\000sw\000chemical/x-swissprot\000vms\000chemical/x-vamas-iso14976\000vmd\000chemical/x-vmd\000xtel\000chemical/x-xtel\000xyz\000chemical/x-xyz\000gif\000image/gif\000ief\000image/ief\000jpeg\000image/jpeg\000jpg\000image/jpeg\000jpe\000image/jpeg\000pcx\000image/pcx\000png\000image/png\000svg\000image/svg+xml\000svgz\000image/svg+xml\000tiff\000image/tiff\000tif\000image/tiff\000djvu\000image/vnd.djvu\000djv\000image/vnd.djvu\000wbmp\000image/vnd.wap.wbmp\000cr2\000image/x-canon-cr2\000crw\000image/x-canon-crw\000ras\000image/x-cmu-raster\000cdr\000image/x-coreldraw\000pat\000image/x-coreldrawpattern\000cdt\000image/x-coreldrawtemplate\000cpt\000image/x-corelphotopaint\000erf\000image/x-epson-erf\000ico\000image/x-icon\000art\000image/x-jg\000jng\000image/x-jng\000bmp\000image/x-ms-bmp\000nef\000image/x-nikon-nef\000orf\000image/x-olympus-orf\000psd\000image/x-photoshop\000pnm\000image/x-portable-anymap\000pbm\000image/x-portable-bitmap\000pgm\000image/x-portable-graymap\000ppm\000image/x-portable-pixmap\000rgb\000image/x-rgb\000xbm\000image/x-xbitmap\000xpm\000image/x-xpixmap\000xwd\000image/x-xwindowdump\000eml\000message/rfc822\000igs\000model/iges\000iges\000model/iges\000msh\000model/mesh\000mesh\000model/mesh\000silo\000model/mesh\000wrl\000model/vrml\000vrml\000model/vrml\000x3dv\000model/x3d+vrml\000x3d\000model/x3d+xml\000x3db\000model/x3d+binary\000manifest\000text/cache-manifest\000ics\000text/calendar\000icz\000text/calendar\000css\000text/css\000csv\000text/csv\000323\000text/h323\000html\000text/html\000htm\000text/html\000shtml\000text/html\000uls\000text/iuls\000mml\000text/mathml\000asc\000text/plain\000txt\000text/plain\000text\000text/plain\000pot\000text/plain\000brf\000text/plain\000rtx\000text/richtext\000sct\000text/scriptlet\000wsc\000text/scriptlet\000tm\000text/texmacs\000ts\000text/texmacs\000tsv\000text/tab-separated-values\000jad\000text/vnd.sun.j2me.app-descriptor\000wml\000text/vnd.wap.wml\000wmls\000text/vnd.wap.wmlscript\000bib\000text/x-bibtex\000boo\000text/x-boo\000h++\000text/x-c++hdr\000hpp\000text/x-c++hdr\000hxx\000text/x-c++hdr\000hh\000text/x-c++hdr\000c++\000text/x-c++src\000cpp\000text/x-c++src\000cxx\000text/x-c++src\000cc\000text/x-c++src\000h\000text/x-chdr\000htc\000text/x-component\000csh\000text/x-csh\000c\000text/x-csrc\000d\000text/x-dsrc\000diff\000text/x-diff\000patch\000text/x-diff\000hs\000text/x-haskell\000java\000text/x-java\000lhs\000text/x-literate-haskell\000moc\000text/x-moc\000p\000text/x-pascal\000pas\000text/x-pascal\000gcd\000text/x-pcs-gcd\000pl\000text/x-perl\000pm\000text/x-perl\000py\000text/x-python\000scala\000text/x-scala\000etx\000text/x-setext\000sh\000text/x-sh\000tcl\000text/x-tcl\000tk\000text/x-tcl\000tex\000text/x-tex\000ltx\000text/x-tex\000sty\000text/x-tex\000cls\000text/x-tex\000vcs\000text/x-vcalendar\000vcf\000text/x-vcard\0003gp\000video/3gpp\000axv\000video/annodex\000dl\000video/dl\000dif\000video/dv\000dv\000video/dv\000fli\000video/fli\000gl\000video/gl\000mpeg\000video/mpeg\000mpg\000video/mpeg\000mpe\000video/mpeg\000mp4\000video/mp4\000qt\000video/quicktime\000mov\000video/quicktime\000ogv\000video/ogg\000mxu\000video/vnd.mpegurl\000flv\000video/x-flv\000lsf\000video/x-la-asf\000lsx\000video/x-la-asf\000mng\000video/x-mng\000asf\000video/x-ms-asf\000asx\000video/x-ms-asf\000wm\000video/x-ms-wm\000wmv\000video/x-ms-wmv\000wmx\000video/x-ms-wmx\000wvx\000video/x-ms-wvx\000avi\000video/x-msvideo\000movie\000video/x-sgi-movie\000mpv\000video/x-matroska\000mkv\000video/x-matroska\000ice\000x-conference/x-cooltalk\000sisx\000x-epoc/x-sisx-app\000vrm\000x-world/x-vrml\000vrml\000x-world/x-vrml\000wrl\000x-world/x-vrml\000";
 
 /* index of requests[] is the file descriptor */
 struct Request *requests[MAX_FILE_DESCRIPTORS];
 
 char config_dummy = False;
+char config_utf8text = False;
 char config_list_directories = True;
 int config_bind_port = 8080;
 char *config_bind_addr = NULL; /* TODO */
 char *config_doc_root = NULL;
 
 /* )********* UTILS ******** (*/
+
+#ifdef WIN32
+char is_affected_by_xp_mb_bug() {
+	int ans;
+	unsigned char buf[100];
+	static char result = 77; // not True not False...
+	if (result != 77) {
+		return result;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	/* According to the docs, this should attempt to convert ".\xc2." from UTF8
+	 * to UCS-2, and give an error (i.e. return 0) since invalid characters are
+	 * encountered. However... */
+	ans = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, ".\xc2.", -1, (WCHAR*) buf, 100);
+	if (ans && memcmp(buf, ".\0.\0\0\0", 6) == 0) {
+		/* ... I do suspect that in the msdn documentation ""Windows XP: To
+		 * prevent the security problem of the non-shortest-form versions of
+		 * UTF-8 characters, MultiByteToWideChar deletes these characters.""
+		 * does document this "feature" in an obscure manner... */
+		/* For examples of pwnage, see eg. http://www.coresecurity.com/content/advisory-vmware */
+		WARN("Warning: Disabling non-ASCII file access due to bug in MultiByteToWideChar!");
+		result = True;
+	} else {
+		result = False;
+	}
+	return result;
+}
+
+char is_seven_bit_clean(const char *s) {
+	for (; *s != '\0'; s++) {
+		if (*s & 0x80) {
+			return False;
+		}
+	}
+	return True;
+}
+
+// A wrapper around MultiByteToWideChar that refuses to convert any non-ASCII input to UCS-2 on buggy systems.
+int MultiByteToWideCharWrapper(
+		unsigned int CodePage,
+		DWORD dwFlags,
+		LPCSTR lpMultiByteStr,
+		int cbMultiByte,
+		LPWSTR lpWideCharStr,
+		int cchWideChar
+		) {
+	if (is_affected_by_xp_mb_bug() && !is_seven_bit_clean(lpMultiByteStr)) {
+		WARN("Refusing to try UTF-8 conversion with a buggy MultiByteToWideChar()! [%s]", lpMultiByteStr);
+		return 0;
+	} else {
+		return MultiByteToWideChar(CodePage, dwFlags, lpMultiByteStr, cbMultiByte, lpWideCharStr, cchWideChar);
+	}
+}
+
+
+#else  /* ! WIN32 */
+// No implementation.
+#endif
 
 LinkedBlocks lb_new()
 {
@@ -851,6 +913,15 @@ void mime_init()
 		mime_value[mime_num] = c;
 		c += strlen(c) + 1;
 
+		if (config_utf8text == True && strncmp(mime_value[mime_num], "text/", 5) == 0) {
+			static const char *charset_utf8 = ";charset=utf-8";
+			/* Note: leaky singletons */
+			char *mime_with_utf8 = malloc(strlen(mime_value[mime_num]) + strlen(charset_utf8) + 1);
+			strcpy(mime_with_utf8, mime_value[mime_num]);
+			strcat(mime_with_utf8, charset_utf8);
+			mime_value[mime_num] = mime_with_utf8;
+		}
+
 		/* save the pointer to text/html so we can use it conveniently later */
 		if (strcmp(mime_ext[mime_num], "html") == 0) mime_HTML = mime_value[mime_num];
 
@@ -917,15 +988,15 @@ enum filetype_t io_filetype( const char * path )
 	if ( strlen(path) >= sizeof(realpath) )
 	{
 		WARN("path too long for io_is_dir(): '%s'", path);
-		return False;
+		return NOTFOUND;
 	}
 
 	slash2backslash( path, realpath );
-	res = MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, realpath, -1, realpath_w, sizeof(realpath_w) );
+	res = MultiByteToWideCharWrapper( CP_UTF8, MB_ERR_INVALID_CHARS, realpath, -1, realpath_w, sizeof(realpath_w) );
 	if (res == 0)
 	{
 		DEBUG("error in utf-8 to WCHAR conversion");
-		return False;
+		return NOTFOUND;
 	}
 	res = GetFileAttributesW( realpath_w );
 
@@ -981,7 +1052,7 @@ file_t io_open_file( const char *path, unsigned int options )
 	ASSERT(flags != 0);
 
 	ASSERT( strlen(path) <= MAX_PATH );
-	res = MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, path_w, sizeof(path_w) );
+	res = MultiByteToWideCharWrapper( CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, path_w, sizeof(path_w) );
 
 	h = CreateFileW( path_w, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL );
 
@@ -1302,7 +1373,7 @@ dir_t* io_open_dir( const char *path )
 	chopslash(__io_open_dir_buf);
 	strcat(__io_open_dir_buf, "\\*");
 
-	res = MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, __io_open_dir_buf, -1, __io_open_dir_buf_w, sizeof(__io_open_dir_buf_w) );
+	res = MultiByteToWideCharWrapper( CP_UTF8, MB_ERR_INVALID_CHARS, __io_open_dir_buf, -1, __io_open_dir_buf_w, sizeof(__io_open_dir_buf_w) );
 	if ( res == 0 ) {
 		DEBUG("conversion from utf-8 to WCHAR failed");
 		return IO_OPEN_DIR_FAIL;
@@ -1719,7 +1790,7 @@ enum result_t request_list_directory( struct Request *req, const char *path )
 	if (http_decode_uri_abs_path( req->request_uri, decoded_path, NULL ) != SUCCESS)
 		return FAIL_SYS;
 
-	lb_enqueue_str( req->o_queue, "<html><head><meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\"><title>Index of " );
+	lb_enqueue_str( req->o_queue, "<html><head><title>Index of " );
 	lb_enqueue_str( req->o_queue, decoded_path );
 	lb_enqueue_str( req->o_queue, "</title></head><body><h1>Index of " );
 	lb_enqueue_str( req->o_queue, decoded_path );
@@ -2373,7 +2444,7 @@ int http_execute_get_dummy( struct Request *req )
 	ASSERT( req->o_done == False );
 	ASSERT( req->h_sent == False );
 
-	request_enqueue_header_str( req, "Content-Type: text/html; charset=utf-8\r\n" );
+	request_enqueue_header_str( req, "Content-Type: text/html\r\n" );
 	printed = snprintf( buf256, sizeof(buf256),
 			"<html><head><title>Dummy Page</title></head>"
 			"<body><h1>Dummy Page</h1><p>This is a dummy page for onehttpd.</p></body></html>" );
@@ -2768,6 +2839,9 @@ void set_opts(int argc, char *argv[])
 				case 'd':
 					config_dummy = True;
 					break;
+				case 'u':
+					config_utf8text = True;
+					break;
 			}
 		}
 		else
@@ -2832,13 +2906,13 @@ int main(int argc, char *argv[])
 	os_check();
 	common_system_check();
 
-	/* initialize global variables */
-	memset(requests, 0, sizeof(requests));
-	mime_init();
-	set_signal_handlers();
-
 	/* parse arguments */
 	set_opts(argc, argv);
+
+	/* initialize global variables */
+	memset(requests, 0, sizeof(requests));
+	mime_init();  /* This needs to be after set_opts because of -u */
+	set_signal_handlers();
 
 	DEBUG("sizeof(struct Request) = %zd", sizeof(struct Request));
 	DEBUG("sizeof(struct LinkedBlockItem) = %zd", sizeof(struct LinkedBlockItem));
