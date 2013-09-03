@@ -85,13 +85,13 @@
 
 #/* For Makefile:
 ONEHTTPD_VERSION_MAJOR=0
-ONEHTTPD_VERSION_MINOR=7
+ONEHTTPD_VERSION_MINOR=8
 #*/
 
 #/* For C */
 #define ONEHTTPD_VERSION_MAJOR 0
-#define ONEHTTPD_VERSION_MINOR 7
-#define ONEHTTPD_VERSION_STRING "0.7"
+#define ONEHTTPD_VERSION_MINOR 8
+#define ONEHTTPD_VERSION_STRING "0.8"
 #define ONEHTTPD_VERSION_STRING_FULL "onehttpd/" ONEHTTPD_VERSION_STRING
 
 # /* This is the Makefile part
@@ -1808,7 +1808,7 @@ enum result_t request_list_directory( struct Request *req, const char *path )
 	if ( io_errno == SUCCESS ) ret = SUCCESS;
 	else ret = FAIL_SYS;
 
-	lb_enqueue_str( req->o_queue, "</ul><p><i>Server: " ONEHTTPD_VERSION_STRING_FULL "</i></p></body></html>\n" );
+	lb_enqueue_str( req->o_queue, "</ul><p><i>Server: " ONEHTTPD_VERSION_STRING_FULL "</i></p><script type='text/javascript'><!--\nfunction cmp(a,b) { if (a > b) return 1; if (a === b) return 0; return -1; } window.onload = function() { var t = document.getElementsByTagName('UL')[0]; var x = t.childNodes; var l = []; for (var i = 0; i < x.length; i++) { if (x[i].tagName && x[i].tagName.toUpperCase() === 'LI') l.push(x[i]); } l.sort(function (a, b) { return cmp(a.firstChild.firstChild.nodeValue, b.firstChild.firstChild.nodeValue); }); for (var i = 0; i < l.length; i++) { t.removeChild(l[i]); t.appendChild(l[i]); } };\n--></script></body></html>\n" );
 
 	io_close_dir( dir );
 
@@ -2160,8 +2160,9 @@ enum result_t http_decode_uri_abs_path( const char *in_str, char *out_str,
 
 	for (r = in_str, w = out_str; *r != 0; r++, w++)
 	{
-		if (*r < 32) r = 0; /* unsafe, deal with them together */
-		switch (*r)
+		char c = *r;
+		if (c < 32) c = 0; /* unsafe, deal with them together */
+		switch (c)
 		{
 			/* unsafe! */
 			case '\0':
